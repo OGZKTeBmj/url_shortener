@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS short_url (
+    short TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL
+);
