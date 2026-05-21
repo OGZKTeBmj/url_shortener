@@ -6,7 +6,7 @@ ifneq (,$(wildcard ./.env))
 	export
 endif
 
-APP_NAME    ?= auth-service
+APP_NAME    ?= url_shortener
 APP_VERSION ?= 0.0.1
 
 BIN_DIR ?= bin

@@ -9,11 +9,10 @@ import (
 )
 
 type Config struct {
-	Host       string        `envconfig:"HOST"     required:"true"`
-	Port       string        `envconfig:"PORT"     required:"true"`
-	Password   string        `envconfig:"PASSWORD"`
-	DB         int           `envconfig:"DB"       default:"0"`
-	refreshTTL time.Duration `envconfig:"REFRESH_TTL"       default:"10d"`
+	Host     string `envconfig:"HOST"     required:"true"`
+	Port     string `envconfig:"PORT"     required:"true"`
+	Password string `envconfig:"PASSWORD"`
+	DB       int    `envconfig:"DB"       default:"0"`
 }
 
 type Client struct {
