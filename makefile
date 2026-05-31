@@ -140,7 +140,7 @@ clean:
 
 .PHONY: dev
 dev:
-	docker compose up --build
+	docker compose up $(if $(BUILD), --build,) $(if $(DETACH), -d,)
 
 .PHONY: dev-reset
 dev-reset:

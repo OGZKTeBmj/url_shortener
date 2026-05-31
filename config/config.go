@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/postgres"
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/redis"
 	"github.com/OGZKTeBmj/url_shortener/pkg/httpserver"
@@ -12,6 +14,7 @@ type Config struct {
 		Name    string
 		Version string
 		Env     string `default:"dev"`
+		GuestTL time.Duration
 	}
 	Log struct {
 		Level string `default:"info"`

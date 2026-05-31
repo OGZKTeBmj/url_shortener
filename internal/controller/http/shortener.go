@@ -1,8 +1,10 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
+	"github.com/OGZKTeBmj/url_shortener/internal/domain"
 	"github.com/OGZKTeBmj/url_shortener/internal/dto"
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +19,7 @@ func (r *Router) Short(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
+	input.IsGuest = true
 
 	short, err := r.shortenerService.Short(ctx.Request.Context(), input)
 	if err != nil {
@@ -32,6 +35,10 @@ func (r *Router) ShortRedirect(ctx *gin.Context) {
 
 	url, err := r.shortenerService.GetUrl(ctx.Request.Context(), short)
 	if err != nil {
+		if errors.Is(err, domain.ErrEntityNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"message": "short code doesn't exists"})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}

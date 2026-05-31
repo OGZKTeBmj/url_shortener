@@ -10,6 +10,7 @@ import (
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/postgres"
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/redis"
 	"github.com/OGZKTeBmj/url_shortener/internal/controller/http"
+	"github.com/OGZKTeBmj/url_shortener/internal/jobs/cleanup"
 	service "github.com/OGZKTeBmj/url_shortener/internal/service/shortener"
 	"github.com/OGZKTeBmj/url_shortener/pkg/httpserver"
 	"github.com/OGZKTeBmj/url_shortener/pkg/logger"
@@ -57,8 +58,18 @@ func main() {
 	}()
 
 	shortenerService := service.NewShortener(
-		log, urlStorage, redisClient,
+		log, urlStorage, redisClient, cfg.App.GuestTL,
 	)
+
+	cleanupJob := cleanup.NewJob(
+		log,
+		cfg.App.GuestTL,
+		urlStorage,
+	)
+	jobCtx, cancelJobs := context.WithCancel(context.Background())
+	defer cancelJobs()
+
+	go cleanupJob.Run(jobCtx)
 
 	router := http.New(log, shortenerService)
 	server := httpserver.New(router, httpserver.Config{

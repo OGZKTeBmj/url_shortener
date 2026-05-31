@@ -1,0 +1,2 @@
+ALTER TABLE short_url
+ADD COLUMN expires_at TIMESTAMP NULL;
