@@ -5,6 +5,7 @@ import (
 
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/postgres"
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/redis"
+	"github.com/OGZKTeBmj/url_shortener/internal/service/auth"
 	"github.com/OGZKTeBmj/url_shortener/pkg/httpserver"
 	"github.com/kelseyhightower/envconfig"
 )
@@ -22,6 +23,7 @@ type Config struct {
 	HTTP     httpserver.Config
 	Postgres postgres.Config
 	Redis    redis.Config
+	Auth     auth.AuthConfig
 }
 
 func InitConfig() (Config, error) {

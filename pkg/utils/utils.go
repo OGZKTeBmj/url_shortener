@@ -1,6 +1,10 @@
 package utils
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
@@ -21,4 +25,22 @@ func GenerateShortCode() (string, error) {
 		return "", err
 	}
 	return code, nil
+}
+
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func HashRefreshToken(token string, secret []byte) string {
+	h := hmac.New(sha256.New, secret)
+	h.Write([]byte(token))
+
+	sum := h.Sum(nil)
+	return base64.URLEncoding.EncodeToString(sum)
 }

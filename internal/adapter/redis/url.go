@@ -10,19 +10,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func (c *Client) Save(ctx context.Context, short string, url string, tl time.Duration) error {
+type UrlStorage struct {
+	client *redis.Client
+}
+
+func NewUrlStorage(client *redis.Client) *UrlStorage {
+	return &UrlStorage{client: client}
+}
+
+func (u *UrlStorage) Save(ctx context.Context, short string, url string, tl time.Duration) error {
 	const op = "redis.url.Save"
 
-	if err := c.client.Set(ctx, shortKey(short), url, tl).Err(); err != nil {
+	if err := u.client.Set(ctx, shortKey(short), url, tl).Err(); err != nil {
 		return utils.ErrWrap(op, err)
 	}
 	return nil
 }
 
-func (c *Client) Get(ctx context.Context, short string) (string, error) {
+func (u *UrlStorage) Get(ctx context.Context, short string) (string, error) {
 	const op = "redis.url.Get"
 
-	url, err := c.client.Get(ctx, shortKey(short)).Result()
+	url, err := u.client.Get(ctx, shortKey(short)).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", utils.ErrWrap(op, domain.ErrEntityNotFound)

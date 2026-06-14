@@ -58,3 +58,7 @@ func (c *Client) Close() error {
 	}
 	return nil
 }
+
+func (c *Client) Client() *redis.Client {
+	return c.client
+}

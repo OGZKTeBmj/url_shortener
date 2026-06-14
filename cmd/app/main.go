@@ -11,7 +11,8 @@ import (
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/redis"
 	"github.com/OGZKTeBmj/url_shortener/internal/controller/http"
 	"github.com/OGZKTeBmj/url_shortener/internal/jobs/cleanup"
-	service "github.com/OGZKTeBmj/url_shortener/internal/service/shortener"
+	"github.com/OGZKTeBmj/url_shortener/internal/service/auth"
+	"github.com/OGZKTeBmj/url_shortener/internal/service/shortener"
 	"github.com/OGZKTeBmj/url_shortener/pkg/httpserver"
 	"github.com/OGZKTeBmj/url_shortener/pkg/logger"
 	"github.com/OGZKTeBmj/url_shortener/pkg/utils"
@@ -25,6 +26,7 @@ func main() {
 	if err != nil {
 		panic(utils.ErrWrap("can't init config", err))
 	}
+	cfg.Auth.AppName = cfg.App.Name
 
 	log := logger.NewSlogLogger(os.Stdout, logger.Config{
 		AppName:    cfg.App.Name,
@@ -42,7 +44,8 @@ func main() {
 		pgs.Close()
 		log.Info("postgres stopped")
 	}()
-	urlStorage := postgres.NewUrlStorage(pgs.DB())
+	urlPgsStorage := postgres.NewUrlStorage(pgs.DB())
+	userPgsStorage := postgres.NewUserStorage(pgs.DB())
 
 	redisClient := redis.New(cfg.Redis)
 	if err := redisClient.Connect(context.Background()); err != nil {
@@ -56,22 +59,25 @@ func main() {
 			log.Info("redis stopped")
 		}
 	}()
+	urlRedisStorage := redis.NewUrlStorage(redisClient.Client())
+	RTokenRedisStorage := redis.NewRefreshTokenStorage(redisClient.Client())
 
-	shortenerService := service.NewShortener(
-		log, urlStorage, redisClient, cfg.App.GuestTL,
+	shortenerService := shortener.NewShortener(
+		log, urlPgsStorage, urlRedisStorage, cfg.App.GuestTL,
 	)
+	authService := auth.NewAuth(log, userPgsStorage, RTokenRedisStorage, cfg.Auth)
 
 	cleanupJob := cleanup.NewJob(
 		log,
 		cfg.App.GuestTL,
-		urlStorage,
+		urlPgsStorage,
 	)
 	jobCtx, cancelJobs := context.WithCancel(context.Background())
 	defer cancelJobs()
 
 	go cleanupJob.Run(jobCtx)
 
-	router := http.New(log, shortenerService)
+	router := http.New(log, shortenerService, authService)
 	server := httpserver.New(router, httpserver.Config{
 		ShutdownTimeout: cfg.HTTP.ShutdownTimeout,
 		Port:            cfg.HTTP.Port,
