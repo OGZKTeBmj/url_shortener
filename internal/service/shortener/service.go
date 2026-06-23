@@ -2,88 +2,66 @@ package shortener
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/OGZKTeBmj/url_shortener/internal/domain"
-	"github.com/OGZKTeBmj/url_shortener/internal/dto"
 	"github.com/OGZKTeBmj/url_shortener/pkg/logger"
-	"github.com/OGZKTeBmj/url_shortener/pkg/utils"
 )
 
-type URLProvider interface {
+type RateLimiter interface {
+	Allow(сtx context.Context, key string, limit int64) error
+	Consume(ctx context.Context, key string, window time.Duration) error
+}
+
+type StatisticProvider interface {
+	VisitIncr(ctx context.Context, short string) error
+}
+
+type СacheURLProvider interface {
 	Save(ctx context.Context, short string, url string, tl time.Duration) error
 	Get(ctx context.Context, short string) (string, error)
 }
 
+type URLProvider interface {
+	Save(ctx context.Context, short string, url string, userId domain.UUID, tl time.Duration) error
+	Get(ctx context.Context, short string) (string, error)
+	GetURLsByUserID(ctx context.Context, userId domain.UUID) ([]domain.UserURL, error)
+}
+
+type UserURLProvider interface {
+}
+
 type Shortener struct {
-	guestShortTL     time.Duration
-	log              logger.Logger
+	cfg ShortenerConfig
+	log logger.Logger
+
 	mainURLProvider  URLProvider
-	cacheURLProvider URLProvider
+	cacheURLProvider СacheURLProvider
+
+	statisticProvider StatisticProvider
+	rateLimiter       RateLimiter
+}
+
+type ShortenerConfig struct {
+	GuestTTL    time.Duration `yaml:"guest_ttl"`
+	GuestLimit  int64         `yaml:"guest_limit"`
+	GuestWindow time.Duration `yaml:"guest_window"`
 }
 
 func NewShortener(
+	cfg ShortenerConfig,
 	log logger.Logger,
 	mainURLProvider URLProvider,
-	cacheURLProvider URLProvider,
-	guestShortTL time.Duration,
+	cacheURLProvider СacheURLProvider,
+	statisticCounter StatisticProvider,
+	rateLimiter RateLimiter,
 ) *Shortener {
 	return &Shortener{
-		log:              log,
-		mainURLProvider:  mainURLProvider,
-		cacheURLProvider: cacheURLProvider,
-		guestShortTL:     guestShortTL,
+		cfg:               cfg,
+		log:               log,
+		mainURLProvider:   mainURLProvider,
+		cacheURLProvider:  cacheURLProvider,
+		statisticProvider: statisticCounter,
+		rateLimiter:       rateLimiter,
 	}
-}
-
-func (s *Shortener) Short(ctx context.Context, input dto.ShortInput) (string, error) {
-	const op = "shortenerService.Short"
-
-	log := s.log.With("op", op, "url", input.URL)
-
-	short, err := utils.GenerateShortCode()
-	if err != nil {
-		log.Error("generate short", "error", err)
-		return "", utils.ErrWrap(op, err)
-	}
-
-	if err := s.mainURLProvider.Save(ctx, short, input.URL, s.guestShortTL); err != nil {
-		log.Error("save url", "provider", "main", "error", err)
-		return "", utils.ErrWrap(op, err)
-	}
-
-	if err := s.cacheURLProvider.Save(ctx, short, input.URL, s.guestShortTL); err != nil {
-		log.Error("save url", "provider", "cache", "error", err)
-	} else {
-		log.Debug("save url", "provider", "cache")
-	}
-
-	return short, nil
-}
-
-func (s *Shortener) GetUrl(ctx context.Context, short string) (string, error) {
-	const op = "shortenerService.GetUrl"
-
-	log := s.log.With("op", op, "short", short)
-
-	url, err := s.cacheURLProvider.Get(ctx, short)
-	if err == nil {
-		log.Debug("get url", "provider", "cache")
-		return url, nil
-	}
-
-	if !errors.Is(err, domain.ErrEntityNotFound) {
-		log.Error("get url", "provider", "cache")
-	}
-
-	url, err = s.mainURLProvider.Get(ctx, short)
-	if err != nil {
-		if !errors.Is(err, domain.ErrEntityNotFound) {
-			log.Error("get url", "provider", "main", "error", err)
-		}
-		log.Debug("get url", "provider", "main", "info", "url not found")
-		return "", utils.ErrWrap(op, err)
-	}
-	return url, nil
 }

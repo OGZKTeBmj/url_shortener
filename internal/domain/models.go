@@ -17,3 +17,9 @@ type User struct {
 type RefreshSession struct {
 	UserID UUID
 }
+
+type UserURL struct {
+	URL    string
+	Short  string
+	Visits int64
+}

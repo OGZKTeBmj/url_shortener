@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/OGZKTeBmj/url_shortener/internal/domain"
@@ -40,6 +41,83 @@ func (u *UrlStorage) Get(ctx context.Context, short string) (string, error) {
 	return url, nil
 }
 
+func (u *UrlStorage) Allow(ctx context.Context, key string, limit int64) error {
+	const op = "redis.url.Allow"
+
+	count, err := u.client.Get(ctx, rateLimitKey(key)).Int64()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+		return utils.ErrWrap(op, err)
+	}
+
+	if count >= limit {
+		return utils.ErrWrap(op, domain.ErrRateLimitExceeded)
+	}
+
+	return nil
+}
+
+func (u *UrlStorage) Consume(ctx context.Context, key string, window time.Duration) error {
+	const op = "redis.url.Consume"
+
+	count, err := u.client.Incr(ctx, rateLimitKey(key)).Result()
+	if err != nil {
+		return utils.ErrWrap(op, err)
+	}
+
+	if count == 1 {
+		if err := u.client.Expire(ctx, rateLimitKey(key), window).Err(); err != nil {
+			return utils.ErrWrap(op, err)
+		}
+	}
+
+	return nil
+}
+
+func (u *UrlStorage) VisitIncr(ctx context.Context, short string) error {
+	const op = "redis.url.VisitIncr"
+
+	_, err := u.client.Incr(ctx, visitKey(short)).Result()
+	if err != nil {
+		return utils.ErrWrap(op, err)
+	}
+	return nil
+}
+
+func (u *UrlStorage) VisitsDrain(ctx context.Context) (map[string]int64, error) {
+	const op = "redis.url.VisitsDrain"
+
+	keys, err := u.client.Keys(ctx, visitKey("*")).Result()
+	if err != nil {
+		return nil, utils.ErrWrap(op, err)
+	}
+	visits := make(map[string]int64)
+
+	for _, key := range keys {
+		val, err := u.client.GetDel(ctx, key).Int64()
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				continue
+			}
+			return nil, utils.ErrWrap(op, err)
+		}
+		key = strings.TrimPrefix(key, visitKey(""))
+		visits[key] = val
+	}
+
+	return visits, nil
+}
+
+func visitKey(key string) string {
+	return "visits:" + key
+}
+
 func shortKey(short string) string {
 	return "short:" + short
+}
+
+func rateLimitKey(key string) string {
+	return "ratelimit:" + key
 }

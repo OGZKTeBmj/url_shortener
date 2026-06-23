@@ -7,4 +7,5 @@ var (
 	ErrEntityAlreadyExists = errors.New("error entity already exists")
 	ErrInvalidCredentails  = errors.New("error invalid credentails")
 	ErrInvalidToken        = errors.New("error invalid token")
+	ErrRateLimitExceeded   = errors.New("rate limit exceeded")
 )

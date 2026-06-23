@@ -2,7 +2,6 @@ package http
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/OGZKTeBmj/url_shortener/internal/service/auth"
 	"github.com/OGZKTeBmj/url_shortener/internal/service/shortener"
@@ -30,7 +29,8 @@ func New(log logger.Logger, shortenerService *shortener.Shortener, authService *
 	router.engine.GET("/:short", router.ShortRedirect)
 	api := engine.Group("/api")
 	{
-		api.POST("/short", router.Short)
+		api.POST("/short", router.MiddlewareUserIdentity, router.Short)
+		api.GET("/urls", router.MidddlewareAuthRequest, router.Urls)
 	}
 	auth := engine.Group("/auth")
 	{
@@ -44,23 +44,4 @@ func New(log logger.Logger, shortenerService *shortener.Shortener, authService *
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.engine.ServeHTTP(w, req)
-}
-
-func MiddlewareLogger(log logger.Logger) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		start := time.Now()
-
-		ctx.Next()
-
-		duration := time.Since(start)
-
-		log.Info("http request",
-			"method", ctx.Request.Method,
-			"path", ctx.Request.URL.Path,
-			"status", ctx.Writer.Status(),
-			"duration_ms", duration.Milliseconds(),
-			"ip", ctx.ClientIP(),
-			"user_agent", ctx.Request.UserAgent(),
-		)
-	}
 }

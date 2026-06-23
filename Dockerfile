@@ -17,6 +17,7 @@ RUN apk add --no-cache postgresql-client bash
 WORKDIR /app
 
 COPY --from=builder /build/app .
+COPY /config/config.yaml ./
 COPY ./wait-for-postgres.sh .
 
 RUN chmod +x ./wait-for-postgres.sh

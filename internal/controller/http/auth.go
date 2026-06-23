@@ -16,7 +16,7 @@ func (r *Router) SignUp(ctx *gin.Context) {
 		return
 	}
 	if err := userInput.Validate(); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 

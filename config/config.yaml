@@ -1,0 +1,8 @@
+auth:
+  access_ttl: 15m
+  refresh_ttl: 360h
+
+shortener:
+  guest_ttl: 240h
+  guest_limit: 5
+  guest_window: 24h

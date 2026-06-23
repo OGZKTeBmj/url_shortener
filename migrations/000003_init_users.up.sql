@@ -5,3 +5,15 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL UNIQUE,
     pass_hash VARCHAR(255) NOT NULL
 );
+
+ALTER TABLE short_url
+ADD COLUMN user_id UUID;
+
+ALTER TABLE short_url
+ADD CONSTRAINT fk_short_url_user
+FOREIGN KEY (user_id)
+REFERENCES users(id)
+ON DELETE CASCADE;
+
+ALTER TABLE short_url
+ADD COLUMN visits BIGINT NOT NULL DEFAULT 0;

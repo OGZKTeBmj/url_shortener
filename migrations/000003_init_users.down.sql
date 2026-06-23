@@ -1,1 +1,10 @@
+ALTER TABLE short_url
+DROP CONSTRAINT IF EXISTS fk_short_url_user;
+
+ALTER TABLE short_url
+DROP COLUMN IF EXISTS user_id;
+
+ALTER TABLE short_url
+DROP COLUMN IF EXISTS visits;
+
 DROP TABLE IF EXISTS users CASCADE;

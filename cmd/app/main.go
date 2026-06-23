@@ -5,12 +5,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/OGZKTeBmj/url_shortener/config"
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/postgres"
 	"github.com/OGZKTeBmj/url_shortener/internal/adapter/redis"
 	"github.com/OGZKTeBmj/url_shortener/internal/controller/http"
-	"github.com/OGZKTeBmj/url_shortener/internal/jobs/cleanup"
+	job "github.com/OGZKTeBmj/url_shortener/internal/jobs"
 	"github.com/OGZKTeBmj/url_shortener/internal/service/auth"
 	"github.com/OGZKTeBmj/url_shortener/internal/service/shortener"
 	"github.com/OGZKTeBmj/url_shortener/pkg/httpserver"
@@ -26,7 +27,6 @@ func main() {
 	if err != nil {
 		panic(utils.ErrWrap("can't init config", err))
 	}
-	cfg.Auth.AppName = cfg.App.Name
 
 	log := logger.NewSlogLogger(os.Stdout, logger.Config{
 		AppName:    cfg.App.Name,
@@ -63,19 +63,30 @@ func main() {
 	RTokenRedisStorage := redis.NewRefreshTokenStorage(redisClient.Client())
 
 	shortenerService := shortener.NewShortener(
-		log, urlPgsStorage, urlRedisStorage, cfg.App.GuestTL,
+		cfg.Shortener, log,
+		urlPgsStorage,
+		urlRedisStorage,
+		urlRedisStorage,
+		urlRedisStorage,
 	)
 	authService := auth.NewAuth(log, userPgsStorage, RTokenRedisStorage, cfg.Auth)
 
-	cleanupJob := cleanup.NewJob(
+	cleanupJob := job.NewCleanupJob(
 		log,
-		cfg.App.GuestTL,
+		cfg.Shortener.GuestTTL,
+		urlPgsStorage,
+	)
+	visitsDrainJob := job.NewVisitsDrainerJob(
+		log,
+		time.Minute,
+		urlRedisStorage,
 		urlPgsStorage,
 	)
 	jobCtx, cancelJobs := context.WithCancel(context.Background())
 	defer cancelJobs()
 
 	go cleanupJob.Run(jobCtx)
+	go visitsDrainJob.Run(jobCtx)
 
 	router := http.New(log, shortenerService, authService)
 	server := httpserver.New(router, httpserver.Config{

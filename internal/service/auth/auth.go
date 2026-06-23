@@ -84,7 +84,7 @@ func (a *Auth) Login(ctx context.Context, input dto.UserInput) (string, string, 
 	session := domain.RefreshSession{
 		UserID: user.UUID,
 	}
-	hashRefreshToken := utils.HashRefreshToken(refreshToken, a.cfg.RefreshSecret)
+	hashRefreshToken := utils.HashRefreshToken(refreshToken, []byte(a.cfg.RefreshSecret))
 	err = a.rTokenRepository.Save(ctx, hashRefreshToken, session, a.cfg.RefreshTTL)
 	if err != nil {
 		log.Error("failed to save refresh token", "error", err)
@@ -101,7 +101,7 @@ func (a *Auth) Logout(ctx context.Context, refreshToken string) error {
 
 	log := a.log.With("op", op)
 
-	hash := utils.HashRefreshToken(refreshToken, a.cfg.RefreshSecret)
+	hash := utils.HashRefreshToken(refreshToken, []byte(a.cfg.RefreshSecret))
 	err := a.rTokenRepository.Delete(ctx, hash)
 	if err != nil {
 		if errors.Is(err, domain.ErrEntityNotFound) {
@@ -119,7 +119,7 @@ func (a *Auth) Refresh(ctx context.Context, token string) (string, string, error
 
 	log := a.log.With("op", op)
 
-	hash := utils.HashRefreshToken(token, a.cfg.RefreshSecret)
+	hash := utils.HashRefreshToken(token, []byte(a.cfg.RefreshSecret))
 
 	session, err := a.rTokenRepository.GetSession(ctx, hash)
 	if err != nil {
@@ -150,7 +150,7 @@ func (a *Auth) Refresh(ctx context.Context, token string) (string, string, error
 		return "", "", utils.ErrWrap(op, err)
 	}
 
-	newHash := utils.HashRefreshToken(newRefreshToken, a.cfg.RefreshSecret)
+	newHash := utils.HashRefreshToken(newRefreshToken, []byte(a.cfg.RefreshSecret))
 
 	err = a.rTokenRepository.Update(ctx, hash, newHash)
 	if err != nil {
@@ -163,22 +163,28 @@ func (a *Auth) Refresh(ctx context.Context, token string) (string, string, error
 	return accessToken, newRefreshToken, nil
 }
 
-func (a *Auth) parseToken(token string) (domain.UUID, error) {
+func (a *Auth) ParseToken(token string) (domain.UUID, error) {
 	const op = "authService.parseToken"
+
+	log := a.log.With("op", op)
 
 	jwtToken, err := jwt.ParseWithClaims(token, &userClaims{}, func(t *jwt.Token) (interface{}, error) {
 		if t.Method != jwt.SigningMethodHS256 {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			err := fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			log.Error("parse token", "error", err)
+			return nil, err
 		}
-		return a.cfg.JWTSecret, nil
+		return []byte(a.cfg.JWTSecret), nil
 	})
 
 	if err != nil {
+		log.Error("parse token", "error", err)
 		return domain.UUID{}, utils.ErrWrap(op, err)
 	}
 
 	claims, ok := jwtToken.Claims.(*userClaims)
 	if !ok || !jwtToken.Valid {
+		log.Error("jwt is valid", "error", err)
 		return domain.UUID{}, utils.ErrWrap(op, domain.ErrInvalidToken)
 	}
 
@@ -196,12 +202,12 @@ func (a *Auth) newToken(user *domain.User) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   fmt.Sprint(user.UUID),
 			Issuer:    a.cfg.AppName,
-			ExpiresAt: jwt.NewNumericDate(now.Add(a.cfg.TTL)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(a.cfg.AccessTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	})
 
-	tokenString, err := token.SignedString(a.cfg.JWTSecret)
+	tokenString, err := token.SignedString([]byte(a.cfg.JWTSecret))
 	if err != nil {
 		return "", utils.ErrWrap(op, err)
 	}

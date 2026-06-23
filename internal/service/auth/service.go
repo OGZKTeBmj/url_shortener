@@ -23,11 +23,11 @@ type RTokenRepository interface {
 }
 
 type AuthConfig struct {
-	AppName       string
-	TTL           time.Duration
-	JWTSecret     []byte
-	RefreshSecret []byte
-	RefreshTTL    time.Duration
+	AppName       string        `ignored:"true"`
+	JWTSecret     string        `envconfig:"AUTH_JWT_SECRET"`
+	RefreshSecret string        `envconfig:"AUTH_REFRESH_SECRET"`
+	AccessTTL     time.Duration `yaml:"access_ttl"`
+	RefreshTTL    time.Duration `yaml:"refresh_ttl"`
 }
 
 type Auth struct {
